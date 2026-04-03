@@ -61,7 +61,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="提取桌面实拍图片中的纸质照片并做透视拉正。")
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--cleanup-profile", choices=EXTRACT_CLEANUP_PROFILES, default="strong")
+    parser.add_argument("--cleanup-profile", choices=EXTRACT_CLEANUP_PROFILES, default="conservative")
     return parser.parse_args()
 
 

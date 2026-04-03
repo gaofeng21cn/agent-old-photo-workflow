@@ -182,7 +182,7 @@ def build_codeformer_command(
 
 
 def build_extract_command(
-    paths: RestorePaths, input_path: Path, output_dir: Path, cleanup_profile: str = "strong"
+    paths: RestorePaths, input_path: Path, output_dir: Path, cleanup_profile: str = "conservative"
 ) -> list[str]:
     return [
         str(paths.extract_venv_python),

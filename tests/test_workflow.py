@@ -113,7 +113,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(command[0], str(paths.extract_venv_python))
         self.assertTrue(command[1].endswith("extract_photo.py"))
         self.assertIn("--cleanup-profile", command)
-        self.assertEqual(command[-1], "strong")
+        self.assertEqual(command[-1], "conservative")
 
     def test_weight_downloads_include_codeformer_and_facelib_assets(self):
         paths = build_paths(Path("/tmp/agent-old-photo-workflow"))

@@ -64,10 +64,10 @@ bash run_extract_restore.sh "/absolute/path/to/photo.jpg" ./output codeformer
 bash run_extract_restore_colorize.sh "/absolute/path/to/photo.jpg" ./output codeformer
 ```
 
-强清理分支默认使用 `strong` profile；如需回退保守版，可显式指定：
+主线默认使用 `conservative` profile；如果要启用更强的纸面污点清理，可显式指定：
 
 ```bash
-EXTRACT_CLEANUP_PROFILE=conservative bash run_extract_restore_colorize.sh "/absolute/path/to/photo.jpg" ./output codeformer
+EXTRACT_CLEANUP_PROFILE=strong bash run_extract_restore_colorize.sh "/absolute/path/to/photo.jpg" ./output codeformer
 ```
 
 切换 DDColor 模型：
