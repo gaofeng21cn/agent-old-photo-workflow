@@ -9,6 +9,7 @@ __pycache__/
 .worktrees/
 worktrees/
 .local/
+docs/
 repos/
 input/
 output/
