@@ -1,0 +1,27 @@
+# AGENTS.md
+
+本仓库是给 `Codex`、`OpenClaw` 这类 Agent 直接接手的老照片工作流项目。
+
+## 目标
+
+- 输入一张已经拍好的纸质老照片；
+- 自动提取照片本体并透视拉正；
+- 做保守或更强的纸面污点清理；
+- 调用 `CodeFormer / GFPGAN / Real-ESRGAN` 做修复；
+- 调用 `DDColor` 做黑白照片上色。
+
+## 操作约定
+
+- 优先使用根目录脚本，不要直接改 `repos/` 里的上游仓库。
+- 不要提交 `.venv`、`.venv-extract`、`repos/`、`models/`、`output/`、`input/`。
+- 做代码修改时，优先同步更新 `tests/test_workflow.py`。
+- 做完成声明前，至少运行：
+  - `.venv/bin/python -m pytest tests/test_workflow.py -q`
+  - 一次真实图片的端到端命令
+
+## 常用入口
+
+- `bash setup_env.sh`
+- `bash setup_extract_env.sh`
+- `bash run_extract_restore.sh <input> <output> codeformer`
+- `bash run_extract_restore_colorize.sh <input> <output> codeformer`
