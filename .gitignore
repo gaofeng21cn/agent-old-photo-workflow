@@ -10,3 +10,6 @@ repos/
 input/
 output/
 models/
+private/
+scratch/
+tmp/

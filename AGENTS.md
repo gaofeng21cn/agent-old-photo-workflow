@@ -14,6 +14,7 @@
 
 - 优先使用根目录脚本，不要直接改 `repos/` 里的上游仓库。
 - 不要提交 `.venv`、`.venv-extract`、`repos/`、`models/`、`output/`、`input/`。
+- 涉及个人隐私的测试照片或处理结果，不得进入 Git；私有素材应放在仓库外，或放在 `input/`、`output/`、`private/`、`scratch/` 这类已忽略目录中。
 - 做代码修改时，优先同步更新 `tests/test_workflow.py`。
 - 做完成声明前，至少运行：
   - `.venv/bin/python -m pytest tests/test_workflow.py -q`
