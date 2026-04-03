@@ -8,7 +8,13 @@ version = "0.1.0"
 description = "Agent-first old photo extraction, restoration, and colorization workflow."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.26,<3"]
+dependencies = [
+    "numpy>=1.26,<3",
+    "opencv-python-headless>=4.10,<5",
+]
+
+[project.scripts]
+agent-old-photo = "agent_old_photo.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=9.0"]
@@ -18,4 +24,3 @@ include = ["agent_old_photo"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
-

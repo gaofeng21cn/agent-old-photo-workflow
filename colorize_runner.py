@@ -11,11 +11,13 @@ import torch
 from huggingface_hub import PyTorchModelHubMixin
 
 ROOT = Path(__file__).resolve().parent
-DDCOLOR_REPO = ROOT / "repos" / "DDColor"
+from agent_old_photo.workflow import build_ddcolor_model_dir, build_paths, canonical_ddcolor_repo_id
+
+PATHS = build_paths(ROOT)
+DDCOLOR_REPO = PATHS.ddcolor_dir
 if str(DDCOLOR_REPO) not in sys.path:
     sys.path.insert(0, str(DDCOLOR_REPO))
 
-from agent_old_photo.workflow import build_ddcolor_model_dir, canonical_ddcolor_repo_id
 from ddcolor import DDColor, ColorizationPipeline, load_checkpoint_state_dict  # noqa: E402
 
 
@@ -48,7 +50,7 @@ def resolve_model_reference(model_name: str) -> Path | str:
     if explicit_path.exists():
         return explicit_path
 
-    local_dir = build_ddcolor_model_dir(ROOT, model_name)
+    local_dir = build_ddcolor_model_dir(PATHS.workspace_dir, model_name)
     if local_dir.exists():
         return local_dir
 

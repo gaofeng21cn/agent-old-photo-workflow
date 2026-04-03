@@ -19,28 +19,11 @@ if [[ ! -d "$VENV" ]]; then
   bash "$ROOT/setup_env.sh"
 fi
 
-INPUT_PATH="$1"
-OUTPUT_ROOT="$2"
-MODEL="${3:-codeformer}"
-BG_UPSAMPLER="${BG_UPSAMPLER:-realesrgan}"
-FIDELITY="${FIDELITY:-0.7}"
-UPSCALE="${UPSCALE:-2}"
-BG_TILE="${BG_TILE:-400}"
-
-OUTPUT_DIR="$OUTPUT_ROOT/$(date +%Y%m%d_%H%M%S)_${MODEL}"
-mkdir -p "$OUTPUT_DIR"
-
-export PYTORCH_ENABLE_MPS_FALLBACK=1
-
-"$VENV/bin/python" "$ROOT/restore_runner.py" \
-  --input "$INPUT_PATH" \
-  --output "$OUTPUT_DIR" \
-  --model "$MODEL" \
-  --upscale "$UPSCALE" \
-  --fidelity "$FIDELITY" \
-  --bg-tile "$BG_TILE" \
-  --bg-upsampler "$BG_UPSAMPLER" \
-  --face-upsample
-
-printf '修复结果：%s\n' "$OUTPUT_DIR"
-
+exec "$VENV/bin/python" -m agent_old_photo.cli restore \
+  "$1" \
+  "$2" \
+  "${3:-codeformer}" \
+  --bg-upsampler "${BG_UPSAMPLER:-realesrgan}" \
+  --fidelity "${FIDELITY:-0.7}" \
+  --upscale "${UPSCALE:-2}" \
+  --bg-tile "${BG_TILE:-400}"

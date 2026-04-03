@@ -20,12 +20,20 @@ from agent_old_photo.workflow import (
     CAPYBARA_FONT_NAME,
     DOCALIGNER_MODEL_NAME,
     EXTRACT_CLEANUP_PROFILES,
+    InnerContentRectDetectionError,
+    build_full_frame_quad,
     build_border_band_mask,
     build_capybara_font_target,
+    crop_image_to_inner_content_quad,
+    detect_inner_content_quad_with_debug,
     compute_rectified_size,
     find_existing_font_source,
+    is_plausible_inner_content_quad,
     order_quad_points,
+    build_paths,
 )
+
+PATHS = build_paths(ROOT)
 
 
 def ensure_capybara_font() -> None:
@@ -34,7 +42,7 @@ def ensure_capybara_font() -> None:
         return
 
     env_source = os.environ.get("CAPYBARA_FONT_SOURCE")
-    repo_source = ROOT / "models" / "fonts" / CAPYBARA_FONT_NAME
+    repo_source = PATHS.models_dir / "fonts" / CAPYBARA_FONT_NAME
     preferred_sources = []
     if env_source:
         preferred_sources.append(Path(env_source).expanduser())
@@ -73,12 +81,26 @@ def write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def to_jsonable(payload):
+    if isinstance(payload, dict):
+        return {key: to_jsonable(value) for key, value in payload.items()}
+    if isinstance(payload, list):
+        return [to_jsonable(value) for value in payload]
+    if isinstance(payload, tuple):
+        return [to_jsonable(value) for value in payload]
+    if isinstance(payload, np.ndarray):
+        return payload.tolist()
+    if isinstance(payload, (np.floating, np.integer)):
+        return payload.item()
+    return payload
+
+
 def ensure_docaligner_model() -> None:
     site_packages = Path(sys.prefix) / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
     target = site_packages / "docaligner" / "heatmap_reg" / "ckpt" / DOCALIGNER_MODEL_NAME
     if target.exists():
         return
-    source = ROOT / "models" / "docaligner" / DOCALIGNER_MODEL_NAME
+    source = PATHS.models_dir / "docaligner" / DOCALIGNER_MODEL_NAME
     if not source.exists():
         raise FileNotFoundError(f"未找到 DocAligner 模型缓存: {source}，请先运行 setup_extract_env.sh")
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -182,6 +204,71 @@ def clean_rectified_photo(rectified: np.ndarray, cleanup_profile: str) -> tuple[
     raise ValueError(f"不支持的 cleanup_profile: {cleanup_profile}")
 
 
+def iter_debug_segments(payload) -> list[np.ndarray]:
+    segments: list[np.ndarray] = []
+    if isinstance(payload, dict):
+        segment = payload.get("segment")
+        if isinstance(segment, list) and len(segment) == 4:
+            segments.append(np.array(segment, dtype=np.float32))
+        for value in payload.values():
+            segments.extend(iter_debug_segments(value))
+    elif isinstance(payload, list):
+        for value in payload:
+            segments.extend(iter_debug_segments(value))
+    return segments
+
+
+def build_inner_content_mask(height: int, width: int, quad: np.ndarray | None) -> np.ndarray:
+    mask = np.zeros((height, width), dtype=np.uint8)
+    if quad is None:
+        return mask
+    cv2.fillConvexPoly(mask, quad.astype(np.int32), 255)
+    return mask
+
+
+def draw_inner_content_overlay(
+    rectified: np.ndarray,
+    quad: np.ndarray | None,
+    debug_payload: dict | None = None,
+    error_message: str | None = None,
+    secondary_quad: np.ndarray | None = None,
+) -> np.ndarray:
+    overlay = rectified.copy()
+    for segment in iter_debug_segments(debug_payload or {}):
+        x1, y1, x2, y2 = np.round(segment).astype(np.int32)
+        cv2.line(overlay, (x1, y1), (x2, y2), (0, 165, 255), 2)
+
+    if secondary_quad is not None:
+        cv2.polylines(overlay, [secondary_quad.astype(np.int32)], True, (0, 165, 255), 3)
+
+    if quad is not None:
+        quad_i32 = quad.astype(np.int32)
+        cv2.polylines(overlay, [quad_i32], True, (0, 255, 0), 4)
+        for idx, point in enumerate(quad_i32):
+            cv2.circle(overlay, tuple(point), 7, (0, 0, 255), -1)
+            cv2.putText(
+                overlay,
+                str(idx),
+                tuple(point + np.array([8, -8])),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (255, 0, 0),
+                2,
+            )
+
+    if error_message:
+        cv2.putText(
+            overlay,
+            error_message[:120],
+            (16, 28),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 0, 255),
+            2,
+        )
+    return overlay
+
+
 def main() -> int:
     args = parse_args()
     ensure_dir(args.output)
@@ -204,7 +291,6 @@ def main() -> int:
     )
     matrix = cv2.getPerspectiveTransform(ordered, destination)
     rectified = cv2.warpPerspective(image, matrix, (width, height))
-    cleaned, cleanup_mask = clean_rectified_photo(rectified, args.cleanup_profile)
 
     overlay = image.copy()
     cv2.polylines(overlay, [ordered.astype(np.int32)], True, (0, 255, 0), 8)
@@ -214,6 +300,44 @@ def main() -> int:
 
     cv2.imwrite(str(args.output / "detected_quad.png"), overlay)
     cv2.imwrite(str(args.output / "photo_rectified.png"), rectified)
+
+    try:
+        detected_inner_quad, detection_debug = detect_inner_content_quad_with_debug(rectified)
+    except InnerContentRectDetectionError as exc:
+        debug_payload = getattr(exc, "debug", {})
+        cv2.imwrite(
+            str(args.output / "inner_content_quad.png"),
+            draw_inner_content_overlay(rectified, None, debug_payload=debug_payload, error_message=str(exc)),
+        )
+        cv2.imwrite(str(args.output / "inner_content_mask.png"), build_inner_content_mask(height, width, None))
+        write_json(
+            args.output / "inner_content_debug.json",
+            {
+                "status": "failed",
+                "error": str(exc),
+                "debug": to_jsonable(debug_payload),
+            },
+        )
+        raise
+
+    if is_plausible_inner_content_quad(rectified.shape, detected_inner_quad):
+        content_mode = "inner_rect"
+        selected_quad = detected_inner_quad
+        rejected_quad = None
+    else:
+        content_mode = "full_rectified"
+        selected_quad = build_full_frame_quad(width, height)
+        rejected_quad = detected_inner_quad
+
+    inner_overlay = draw_inner_content_overlay(rectified, selected_quad, secondary_quad=rejected_quad)
+    inner_mask = build_inner_content_mask(height, width, selected_quad)
+    content_rectified = crop_image_to_inner_content_quad(rectified, selected_quad)
+    cleaned, cleanup_mask = clean_rectified_photo(content_rectified, args.cleanup_profile)
+
+    cv2.imwrite(str(args.output / "inner_content_quad.png"), inner_overlay)
+    cv2.imwrite(str(args.output / "inner_content_mask.png"), inner_mask)
+    cv2.imwrite(str(args.output / "photo_content_rectified.png"), content_rectified)
+    cv2.imwrite(str(args.output / "photo_content_rectified_cleaned.png"), cleaned)
     cv2.imwrite(str(args.output / "photo_rectified_cleaned.png"), cleaned)
     cv2.imwrite(str(args.output / "cleanup_mask.png"), cleanup_mask)
     write_json(
@@ -222,11 +346,28 @@ def main() -> int:
             "input": str(args.input),
             "ordered_corners": ordered.tolist(),
             "rectified_size": {"width": width, "height": height},
+            "inner_content_mode": content_mode,
+            "inner_content_quad": selected_quad.tolist(),
+            "detected_inner_quad": detected_inner_quad.tolist(),
+            "detection_debug": to_jsonable(detection_debug),
+            "content_rectified_size": {"width": int(content_rectified.shape[1]), "height": int(content_rectified.shape[0])},
             "cleanup_profile": args.cleanup_profile,
-            "cleanup_output": str(args.output / "photo_rectified_cleaned.png"),
+            "content_output": str(args.output / "photo_content_rectified.png"),
+            "cleanup_output": str(args.output / "photo_content_rectified_cleaned.png"),
         },
     )
-    print(args.output / "photo_rectified_cleaned.png")
+    write_json(
+        args.output / "inner_content_debug.json",
+        {
+            "status": "ok",
+            "inner_content_mode": content_mode,
+            "inner_content_quad": selected_quad.tolist(),
+            "detected_inner_quad": detected_inner_quad.tolist(),
+            "detection_debug": to_jsonable(detection_debug),
+            "content_rectified_size": {"width": int(content_rectified.shape[1]), "height": int(content_rectified.shape[0])},
+        },
+    )
+    print(args.output / "photo_content_rectified_cleaned.png")
     return 0
 
 

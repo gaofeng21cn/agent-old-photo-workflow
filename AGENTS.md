@@ -12,8 +12,9 @@
 
 ## 操作约定
 
-- 优先使用根目录脚本，不要直接改 `repos/` 里的上游仓库。
-- 不要提交 `.venv`、`.venv-extract`、`repos/`、`models/`、`output/`、`input/`。
+- 优先使用 `agent-old-photo` CLI 或根目录兼容脚本，不要直接改 `repos/` 里的上游仓库。
+- 默认运行期 workspace 在仓库外部；可通过 `OLD_PHOTO_HOME` 覆盖。
+- 不要提交 `.venv`、`.venv-extract`、`repos/`、`models/`、`output/`、`input/`、`.local/`。
 - 涉及个人隐私的测试照片或处理结果，不得进入 Git；私有素材应放在仓库外，或放在 `input/`、`output/`、`private/`、`scratch/` 这类已忽略目录中。
 - 做代码修改时，优先同步更新 `tests/test_workflow.py`。
 - 做完成声明前，至少运行：
@@ -22,6 +23,8 @@
 
 ## 常用入口
 
+- `agent-old-photo extract-restore <input> <output> codeformer`
+- `agent-old-photo extract-restore-colorize <input> <output> codeformer`
 - `bash setup_env.sh`
 - `bash setup_extract_env.sh`
 - `bash run_extract_restore.sh <input> <output> codeformer`

@@ -4,7 +4,36 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 VENV="$ROOT/.venv"
 PYTHON="${PYTHON:-/opt/homebrew/bin/python3.10}"
-REPOS="$ROOT/repos"
+
+default_workspace_root() {
+  if [[ -n "${OLD_PHOTO_HOME:-}" ]]; then
+    case "$OLD_PHOTO_HOME" in
+      /*)
+        printf '%s\n' "$OLD_PHOTO_HOME"
+        ;;
+      *)
+        printf '%s\n' "$ROOT/$OLD_PHOTO_HOME"
+        ;;
+    esac
+    return
+  fi
+
+  case "$(uname -s)" in
+    Darwin)
+      printf '%s\n' "$HOME/Library/Application Support/agent-old-photo-workflow"
+      ;;
+    CYGWIN*|MINGW*|MSYS*|Windows_NT)
+      printf '%s\n' "${APPDATA:-$HOME/AppData/Roaming}/agent-old-photo-workflow"
+      ;;
+    *)
+      printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/agent-old-photo-workflow"
+      ;;
+  esac
+}
+
+WORKSPACE_ROOT="$(default_workspace_root)"
+REPOS="$WORKSPACE_ROOT/repos"
+LEGACY_REPOS="$ROOT/repos"
 
 abort() {
   printf '%s\n' "$1" >&2
@@ -32,20 +61,24 @@ python -m pip install -e ".[dev]"
 mkdir -p "$REPOS"
 
 clone() {
-  local url=$1 path=$2
+  local url=$1 path=$2 legacy_path=$3
   if [[ -d "$path/.git" ]]; then
     printf 'Skip %s (already cloned)\n' "$path"
+  elif [[ -d "$legacy_path/.git" ]]; then
+    printf 'Migrate %s -> %s\n' "$legacy_path" "$path"
+    mkdir -p "$(dirname "$path")"
+    cp -R "$legacy_path" "$path"
   else
     git clone "$url" "$path"
   fi
 }
 
-clone https://github.com/sczhou/CodeFormer.git "$REPOS/CodeFormer"
-clone https://github.com/TencentARC/GFPGAN.git "$REPOS/GFPGAN"
-clone https://github.com/xinntao/Real-ESRGAN.git "$REPOS/Real-ESRGAN"
-clone https://github.com/piddnad/DDColor.git "$REPOS/DDColor"
+clone https://github.com/sczhou/CodeFormer.git "$REPOS/CodeFormer" "$LEGACY_REPOS/CodeFormer"
+clone https://github.com/TencentARC/GFPGAN.git "$REPOS/GFPGAN" "$LEGACY_REPOS/GFPGAN"
+clone https://github.com/xinntao/Real-ESRGAN.git "$REPOS/Real-ESRGAN" "$LEGACY_REPOS/Real-ESRGAN"
+clone https://github.com/piddnad/DDColor.git "$REPOS/DDColor" "$LEGACY_REPOS/DDColor"
 
-OLD_PHOTO_ROOT="$ROOT" DDCOLOR_MODEL="${DDCOLOR_MODEL:-ddcolor_modelscope}" python - <<'PY'
+OLD_PHOTO_ROOT="$ROOT" OLD_PHOTO_WORKSPACE="$WORKSPACE_ROOT" DDCOLOR_MODEL="${DDCOLOR_MODEL:-ddcolor_modelscope}" python - <<'PY'
 import os
 import shutil
 from pathlib import Path
@@ -53,6 +86,7 @@ from pathlib import Path
 from huggingface_hub import snapshot_download
 
 root = Path(os.environ["OLD_PHOTO_ROOT"])
+workspace = Path(os.environ["OLD_PHOTO_WORKSPACE"])
 model_name = os.environ["DDCOLOR_MODEL"]
 
 import sys
@@ -66,10 +100,16 @@ from agent_old_photo.workflow import (
 )
 
 repo_id = canonical_ddcolor_repo_id(model_name)
-local_dir = build_ddcolor_model_dir(root, model_name)
+local_dir = build_ddcolor_model_dir(workspace, model_name)
+legacy_dir = build_ddcolor_model_dir(root, model_name)
 
 if (local_dir / "config.json").exists() and (local_dir / "pytorch_model.bin").exists():
     print(f'DDColor 模型已缓存：{local_dir}')
+elif (legacy_dir / "config.json").exists() and (legacy_dir / "pytorch_model.bin").exists():
+    local_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(legacy_dir / "config.json", local_dir / "config.json")
+    shutil.copyfile(legacy_dir / "pytorch_model.bin", local_dir / "pytorch_model.bin")
+    print(f'DDColor 模型已从旧仓库缓存迁移到 workspace：{local_dir}')
 else:
     allow_patterns = ["config.json", "pytorch_model.bin"]
     repo_cache_dir = build_huggingface_model_cache_dir(repo_id)
@@ -86,13 +126,13 @@ else:
         local_dir.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(cached_snapshot / "config.json", local_dir / "config.json")
         shutil.copyfile(cached_snapshot / "pytorch_model.bin", local_dir / "pytorch_model.bin")
-        print(f'DDColor 模型已从 Hugging Face 本地缓存物化到仓库：{local_dir}')
+        print(f'DDColor 模型已从 Hugging Face 本地缓存物化到 workspace：{local_dir}')
     else:
         snapshot_download(repo_id, local_dir=str(local_dir), allow_patterns=allow_patterns)
-        print(f'DDColor 模型已下载到仓库：{local_dir}')
+        print(f'DDColor 模型已下载到 workspace：{local_dir}')
 PY
 
-OLD_PHOTO_ROOT="$ROOT" python - <<'PY'
+OLD_PHOTO_ROOT="$ROOT" OLD_PHOTO_WORKSPACE="$WORKSPACE_ROOT" python - <<'PY'
 import os
 import subprocess
 import sys
@@ -100,12 +140,13 @@ import time
 from pathlib import Path
 
 root = Path(os.environ["OLD_PHOTO_ROOT"])
+workspace = Path(os.environ["OLD_PHOTO_WORKSPACE"])
 if str(root) not in sys.path:
     sys.path.insert(0, str(root))
 
 from agent_old_photo.workflow import build_codeformer_basicsr_version_file, render_codeformer_basicsr_version
 
-codeformer_dir = root / "repos" / "CodeFormer"
+codeformer_dir = workspace / "repos" / "CodeFormer"
 version_txt = (codeformer_dir / "basicsr" / "VERSION").read_text(encoding="utf-8").strip()
 try:
     gitsha = subprocess.check_output(
@@ -132,3 +173,4 @@ python -m pip install --force-reinstall -e "$REPOS/GFPGAN" --no-deps
 python -m pip install --force-reinstall -e "$REPOS/Real-ESRGAN" --no-deps
 
 printf '主环境准备完毕，请运行 bash run_extract_restore_colorize.sh <input> <output> codeformer\n'
+printf '运行期 workspace：%s\n' "$WORKSPACE_ROOT"

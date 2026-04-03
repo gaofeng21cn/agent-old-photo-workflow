@@ -14,12 +14,14 @@ from basicsr.utils import imwrite
 from gfpgan import GFPGANer
 from realesrgan import RealESRGANer
 
+from agent_old_photo.workflow import build_paths
+
 
 ROOT = Path(__file__).resolve().parent
-REPOS = ROOT / "repos"
-CODEFORMER_DIR = REPOS / "CodeFormer"
-GFPGAN_DIR = REPOS / "GFPGAN"
-REALESRGAN_DIR = REPOS / "Real-ESRGAN"
+PATHS = build_paths(ROOT)
+CODEFORMER_DIR = PATHS.codeformer_dir
+GFPGAN_DIR = PATHS.gfpgan_dir
+REALESRGAN_DIR = PATHS.realesrgan_dir
 
 
 def select_device() -> torch.device:
@@ -175,4 +177,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

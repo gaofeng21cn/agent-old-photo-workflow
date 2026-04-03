@@ -6,8 +6,37 @@ VENV="$ROOT/.venv-extract"
 PYTHON="${PYTHON:-/opt/homebrew/bin/python3.10}"
 DOCALIGNER_FILE_ID="14vUH77v6yGg7zFctUgcT6BzV5Iisg4Dl"
 DOCALIGNER_MODEL="fastvit_sa24_h_e_bifpn_256_fp32.onnx"
-MODEL_CACHE_DIR="$ROOT/models/docaligner"
+
+default_workspace_root() {
+  if [[ -n "${OLD_PHOTO_HOME:-}" ]]; then
+    case "$OLD_PHOTO_HOME" in
+      /*)
+        printf '%s\n' "$OLD_PHOTO_HOME"
+        ;;
+      *)
+        printf '%s\n' "$ROOT/$OLD_PHOTO_HOME"
+        ;;
+    esac
+    return
+  fi
+
+  case "$(uname -s)" in
+    Darwin)
+      printf '%s\n' "$HOME/Library/Application Support/agent-old-photo-workflow"
+      ;;
+    CYGWIN*|MINGW*|MSYS*|Windows_NT)
+      printf '%s\n' "${APPDATA:-$HOME/AppData/Roaming}/agent-old-photo-workflow"
+      ;;
+    *)
+      printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/agent-old-photo-workflow"
+      ;;
+  esac
+}
+
+WORKSPACE_ROOT="$(default_workspace_root)"
+MODEL_CACHE_DIR="$WORKSPACE_ROOT/models/docaligner"
 MODEL_CACHE="$MODEL_CACHE_DIR/$DOCALIGNER_MODEL"
+LEGACY_MODEL_CACHE="$ROOT/models/docaligner/$DOCALIGNER_MODEL"
 TARGET_MODEL="$VENV/lib/python3.10/site-packages/docaligner/heatmap_reg/ckpt/$DOCALIGNER_MODEL"
 
 abort() {
@@ -35,19 +64,24 @@ python -m pip install --upgrade \
 
 mkdir -p "$MODEL_CACHE_DIR"
 if [[ ! -f "$MODEL_CACHE" ]]; then
-  python -m gdown --no-cookies --id "$DOCALIGNER_FILE_ID" -O "$MODEL_CACHE"
+  if [[ -f "$LEGACY_MODEL_CACHE" ]]; then
+    cp "$LEGACY_MODEL_CACHE" "$MODEL_CACHE"
+  else
+    python -m gdown --no-cookies --id "$DOCALIGNER_FILE_ID" -O "$MODEL_CACHE"
+  fi
 fi
 
 mkdir -p "$(dirname "$TARGET_MODEL")"
 cp "$MODEL_CACHE" "$TARGET_MODEL"
 
-OLD_PHOTO_ROOT="$ROOT" python - <<'PY'
+OLD_PHOTO_ROOT="$ROOT" OLD_PHOTO_WORKSPACE="$WORKSPACE_ROOT" python - <<'PY'
 import os
 import shutil
 import sys
 from pathlib import Path
 
 root = Path(os.environ["OLD_PHOTO_ROOT"])
+workspace = Path(os.environ["OLD_PHOTO_WORKSPACE"])
 if str(root) not in sys.path:
     sys.path.insert(0, str(root))
 
@@ -59,12 +93,14 @@ from agent_old_photo.workflow import (
 )
 
 target = build_capybara_font_target(Path(sys.prefix), sys.version_info.major, sys.version_info.minor)
-repo_source = root / "models" / "fonts" / CAPYBARA_FONT_NAME
+repo_source = workspace / "models" / "fonts" / CAPYBARA_FONT_NAME
+legacy_repo_source = root / "models" / "fonts" / CAPYBARA_FONT_NAME
 env_source = os.environ.get("CAPYBARA_FONT_SOURCE")
 preferred_sources = []
 if env_source:
     preferred_sources.append(Path(env_source).expanduser())
 preferred_sources.append(repo_source)
+preferred_sources.append(legacy_repo_source)
 
 source = find_existing_font_source(tuple(preferred_sources) + CAPYBARA_FONT_CANDIDATES)
 if source is None:
@@ -79,3 +115,4 @@ print(f'capybara 字体已准备：{target}')
 PY
 
 printf '提取环境准备完毕，请运行 bash run_extract_restore.sh <input> <output> codeformer\n'
+printf '运行期 workspace：%s\n' "$WORKSPACE_ROOT"

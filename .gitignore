@@ -6,6 +6,9 @@ __pycache__/
 *.egg-info/
 .venv/
 .venv-extract/
+.worktrees/
+worktrees/
+.local/
 repos/
 input/
 output/
