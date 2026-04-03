@@ -14,6 +14,7 @@ DOCALIGNER_MODEL_NAME = "fastvit_sa24_h_e_bifpn_256_fp32.onnx"
 EXTRACT_NUMPY_VERSION = "2.2.6"
 EXTRACT_OPENCV_VERSION = "4.13.0.92"
 EXTRACT_ONNXRUNTIME_VERSION = "1.22.0"
+EXTRACT_CLEANUP_PROFILES = ("conservative", "strong")
 CAPYBARA_FONT_NAME = "NotoSansMonoCJKtc-VF.ttf"
 CAPYBARA_FONT_CANDIDATES = (
     Path("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
@@ -180,7 +181,9 @@ def build_codeformer_command(
     ]
 
 
-def build_extract_command(paths: RestorePaths, input_path: Path, output_dir: Path) -> list[str]:
+def build_extract_command(
+    paths: RestorePaths, input_path: Path, output_dir: Path, cleanup_profile: str = "strong"
+) -> list[str]:
     return [
         str(paths.extract_venv_python),
         str(paths.base_dir / "extract_photo.py"),
@@ -188,6 +191,8 @@ def build_extract_command(paths: RestorePaths, input_path: Path, output_dir: Pat
         str(input_path),
         "--output",
         str(output_dir),
+        "--cleanup-profile",
+        cleanup_profile,
     ]
 
 

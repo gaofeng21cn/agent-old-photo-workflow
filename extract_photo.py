@@ -19,6 +19,7 @@ from agent_old_photo.workflow import (
     CAPYBARA_FONT_CANDIDATES,
     CAPYBARA_FONT_NAME,
     DOCALIGNER_MODEL_NAME,
+    EXTRACT_CLEANUP_PROFILES,
     build_border_band_mask,
     build_capybara_font_target,
     compute_rectified_size,
@@ -60,6 +61,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="提取桌面实拍图片中的纸质照片并做透视拉正。")
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--cleanup-profile", choices=EXTRACT_CLEANUP_PROFILES, default="strong")
     return parser.parse_args()
 
 
@@ -93,7 +95,7 @@ def keep_small_components(mask: np.ndarray, max_area: int) -> np.ndarray:
     return kept
 
 
-def clean_rectified_photo(rectified: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def clean_rectified_photo_conservative(rectified: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     height, width = rectified.shape[:2]
     border_thickness = max(12, round(min(height, width) * 0.05))
     border_mask = build_border_band_mask(height, width, border_thickness) * 255
@@ -123,6 +125,63 @@ def clean_rectified_photo(rectified: np.ndarray) -> tuple[np.ndarray, np.ndarray
     return cleaned, cleanup_mask
 
 
+def clean_rectified_photo_strong(rectified: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    height, width = rectified.shape[:2]
+    border_thickness = max(18, round(min(height, width) * 0.08))
+    border_mask = build_border_band_mask(height, width, border_thickness) * 255
+
+    lab = cv2.cvtColor(rectified, cv2.COLOR_BGR2LAB)
+    gray = cv2.cvtColor(rectified, cv2.COLOR_BGR2GRAY)
+    chroma = np.sqrt((lab[:, :, 1].astype(np.float32) - 128.0) ** 2 + (lab[:, :, 2].astype(np.float32) - 128.0) ** 2)
+
+    grad_x = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+    gradient = cv2.magnitude(grad_x, grad_y)
+    smooth_background = gradient < 22.0
+    bright_background = gray > 150
+
+    background = cv2.medianBlur(gray, 17)
+    dark_residual = background.astype(np.int16) - gray.astype(np.int16)
+    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+
+    cleanup_mask = np.zeros_like(gray)
+    background_candidate = bright_background & smooth_background
+    cleanup_mask[
+        (
+            background_candidate
+            & ((dark_residual > 7) | (blackhat > 7) | (chroma > 9.0))
+        )
+        | (
+            (border_mask > 0)
+            & ((dark_residual > 5) | (blackhat > 5) | (chroma > 7.0))
+        )
+    ] = 255
+    cleanup_mask = keep_small_components(cleanup_mask, max_area=max(480, (height * width) // 1100))
+    cleanup_mask = cv2.morphologyEx(
+        cleanup_mask,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)),
+    )
+    cleanup_mask = cv2.dilate(
+        cleanup_mask,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)),
+        iterations=1,
+    )
+
+    cleaned = rectified.copy()
+    if np.any(cleanup_mask):
+        cleaned = cv2.inpaint(cleaned, cleanup_mask, 5, cv2.INPAINT_TELEA)
+    return cleaned, cleanup_mask
+
+
+def clean_rectified_photo(rectified: np.ndarray, cleanup_profile: str) -> tuple[np.ndarray, np.ndarray]:
+    if cleanup_profile == "conservative":
+        return clean_rectified_photo_conservative(rectified)
+    if cleanup_profile == "strong":
+        return clean_rectified_photo_strong(rectified)
+    raise ValueError(f"不支持的 cleanup_profile: {cleanup_profile}")
+
+
 def main() -> int:
     args = parse_args()
     ensure_dir(args.output)
@@ -145,7 +204,7 @@ def main() -> int:
     )
     matrix = cv2.getPerspectiveTransform(ordered, destination)
     rectified = cv2.warpPerspective(image, matrix, (width, height))
-    cleaned, cleanup_mask = clean_rectified_photo(rectified)
+    cleaned, cleanup_mask = clean_rectified_photo(rectified, args.cleanup_profile)
 
     overlay = image.copy()
     cv2.polylines(overlay, [ordered.astype(np.int32)], True, (0, 255, 0), 8)
@@ -163,6 +222,7 @@ def main() -> int:
             "input": str(args.input),
             "ordered_corners": ordered.tolist(),
             "rectified_size": {"width": width, "height": height},
+            "cleanup_profile": args.cleanup_profile,
             "cleanup_output": str(args.output / "photo_rectified_cleaned.png"),
         },
     )

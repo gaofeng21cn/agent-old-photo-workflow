@@ -32,6 +32,7 @@ BG_UPSAMPLER="${BG_UPSAMPLER:-realesrgan}"
 FIDELITY="${FIDELITY:-0.7}"
 UPSCALE="${UPSCALE:-2}"
 BG_TILE="${BG_TILE:-400}"
+CLEANUP_PROFILE="${EXTRACT_CLEANUP_PROFILE:-strong}"
 
 PIPELINE_DIR="$OUTPUT_ROOT/$(date +%Y%m%d_%H%M%S)_extract_restore_colorize_${MODEL}"
 EXTRACT_DIR="$PIPELINE_DIR/extract"
@@ -41,7 +42,8 @@ mkdir -p "$EXTRACT_DIR" "$RESTORE_DIR" "$COLOR_DIR"
 
 "$EXTRACT_VENV/bin/python" "$ROOT/extract_photo.py" \
   --input "$INPUT_PATH" \
-  --output "$EXTRACT_DIR"
+  --output "$EXTRACT_DIR" \
+  --cleanup-profile "$CLEANUP_PROFILE"
 
 RESTORE_INPUT="$EXTRACT_DIR/photo_rectified_cleaned.png"
 if [[ ! -f "$RESTORE_INPUT" ]]; then
@@ -85,4 +87,3 @@ COLOR_OUTPUT="$COLOR_DIR/$(basename "$COLOR_INPUT")"
 printf '提取结果：%s\n' "$EXTRACT_DIR"
 printf '修复结果：%s\n' "$RESTORE_DIR"
 printf '彩色结果：%s\n' "$COLOR_OUTPUT"
-

@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from agent_old_photo.workflow import (
     CAPYBARA_FONT_NAME,
     DOCALIGNER_MODEL_NAME,
+    EXTRACT_CLEANUP_PROFILES,
     RestorePaths,
     build_border_band_mask,
     build_capybara_font_target,
@@ -111,6 +112,8 @@ class WorkflowTests(unittest.TestCase):
         )
         self.assertEqual(command[0], str(paths.extract_venv_python))
         self.assertTrue(command[1].endswith("extract_photo.py"))
+        self.assertIn("--cleanup-profile", command)
+        self.assertEqual(command[-1], "strong")
 
     def test_weight_downloads_include_codeformer_and_facelib_assets(self):
         paths = build_paths(Path("/tmp/agent-old-photo-workflow"))
@@ -148,6 +151,9 @@ class WorkflowTests(unittest.TestCase):
             dtype=np.uint8,
         )
         self.assertTrue(np.array_equal(mask, expected))
+
+    def test_cleanup_profiles_include_conservative_and_strong(self):
+        self.assertEqual(EXTRACT_CLEANUP_PROFILES, ("conservative", "strong"))
 
     def test_build_capybara_font_target_points_into_extract_site_packages(self):
         target = build_capybara_font_target(Path("/tmp/agent-old-photo-workflow/.venv-extract"), 3, 10)

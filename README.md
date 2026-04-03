@@ -5,7 +5,7 @@
 ## 能做什么
 
 - 自动检测桌面实拍图中的纸质照片四角并拉正；
-- 保守清理纸边和亮背景中的小污点；
+- 可切换保守或更强的纸边/亮背景污点清理；
 - 用 `CodeFormer`、`GFPGAN`、`Real-ESRGAN` 做修复；
 - 用 `DDColor` 做黑白老照片上色；
 - 在 Apple Silicon 上优先走 `MPS`。
@@ -62,6 +62,12 @@ bash run_extract_restore.sh "/absolute/path/to/photo.jpg" ./output codeformer
 
 ```bash
 bash run_extract_restore_colorize.sh "/absolute/path/to/photo.jpg" ./output codeformer
+```
+
+强清理分支默认使用 `strong` profile；如需回退保守版，可显式指定：
+
+```bash
+EXTRACT_CLEANUP_PROFILE=conservative bash run_extract_restore_colorize.sh "/absolute/path/to/photo.jpg" ./output codeformer
 ```
 
 切换 DDColor 模型：
