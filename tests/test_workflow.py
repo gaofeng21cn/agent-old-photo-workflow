@@ -403,12 +403,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(target, expected)
 
     def test_find_existing_font_source_returns_first_available_candidate(self):
-        candidates = (
-            Path("/tmp/agent-old-photo-workflow/fonts/missing.ttf"),
-            Path("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
-            Path("/System/Library/Fonts/Supplemental/Andale Mono.ttf"),
-        )
-        self.assertEqual(find_existing_font_source(candidates), candidates[1])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            existing_font = Path(temp_dir) / "available.ttf"
+            later_font = Path(temp_dir) / "later.ttf"
+            existing_font.touch()
+            later_font.touch()
+            candidates = (
+                Path(temp_dir) / "missing.ttf",
+                existing_font,
+                later_font,
+            )
+            self.assertEqual(find_existing_font_source(candidates), existing_font)
 
     def test_build_codeformer_basicsr_version_file_points_to_local_repo_asset(self):
         target = build_codeformer_basicsr_version_file(Path("/tmp/agent-old-photo-workflow/repos/CodeFormer"))
