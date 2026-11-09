@@ -430,5 +430,147 @@ class WorkflowTests(unittest.TestCase):
         self.assertIsInstance(paths, RestorePaths)
 
 
+
+
+class PipelineReadbackTests(unittest.TestCase):
+    def make_image(self, root, name="original.png"):
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(path), np.full((24, 32, 3), 120, dtype=np.uint8))
+        return path
+
+    @staticmethod
+    def stage(paths, source, destination, options):
+        output = destination / "final.png"
+        cv2.imwrite(str(output), cv2.imread(str(source)))
+        return output
+
+    def test_success_result_and_readonly_review_bind_stage_bytes(self):
+        from unittest.mock import patch
+        from agent_old_photo.pipeline import PipelineOptions, run_extract_restore_colorize_pipeline
+        from agent_old_photo.results import read_result, review_result, file_digest
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = self.make_image(root)
+            with patch("agent_old_photo.pipeline.run_extract_stage", self.stage), patch("agent_old_photo.pipeline.run_restore_stage", self.stage), patch("agent_old_photo.pipeline.run_colorize_stage", self.stage):
+                result = run_extract_restore_colorize_pipeline(PipelineOptions(source, root / "output"))
+            value = read_result(result.pipeline_dir)
+            self.assertEqual((value["status"], value["item_count"], value["input_count"]), ("success", 1, 1))
+            self.assertEqual([a["stage"] for a in value["items"][0]["artifacts"]], ["original", "extracted", "restored", "colorized"])
+            result_hash = file_digest(result.pipeline_dir / "result.json")
+            review = review_result(value, root)
+            self.assertTrue(all(a["freshness"] == "current" for a in review["items"][0]["artifacts"]))
+            self.assertEqual(file_digest(result.pipeline_dir / "result.json"), result_hash)
+            source.write_bytes(b"changed")
+            self.assertEqual(review_result(value, root)["items"][0]["artifacts"][0]["freshness"], "changed")
+            with self.assertRaisesRegex(ValueError, "revision changed"):
+                read_result(result.pipeline_dir, "sha256:stale")
+
+    def test_batch_failure_retains_completed_manifest_and_partial_stage(self):
+        import csv
+        from unittest.mock import patch
+        from agent_old_photo.pipeline import PipelineOptions, PipelineExecutionError, run_extract_restore_pipeline
+        from agent_old_photo.results import read_result, file_digest
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            self.make_image(root / "input", "a.png")
+            self.make_image(root / "input", "b.png")
+            calls = 0
+            def restore(paths, source, destination, options):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise RuntimeError("synthetic model failure")
+                return self.stage(paths, source, destination, options)
+            with patch("agent_old_photo.pipeline.run_extract_stage", self.stage), patch("agent_old_photo.pipeline.run_restore_stage", restore):
+                with self.assertRaises(PipelineExecutionError) as raised:
+                    run_extract_restore_pipeline(PipelineOptions(root / "input", root / "output"))
+            value = read_result(raised.exception.result.pipeline_dir)
+            self.assertEqual((value["status"], value["item_count"], value["input_count"]), ("partial", 1, 2))
+            self.assertEqual([item["status"] for item in value["items"]], ["success", "failed"])
+            with open(value["manifest_path"], newline="") as handle:
+                rows = list(csv.DictReader(handle, delimiter="\t"))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["input_path"], value["items"][0]["artifacts"][0]["artifact_ref"])
+            self.assertEqual(file_digest(Path(value["manifest_path"])), value["manifest_revision"])
+            self.assertEqual(value["error"]["message"], "synthetic model failure")
+
+    def test_failed_and_unknown_results_do_not_claim_completion_or_retry(self):
+        from unittest.mock import patch
+        from agent_old_photo.pipeline import PipelineOptions, PipelineExecutionError, run_restore_pipeline
+        from agent_old_photo.results import read_result
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = self.make_image(root)
+            for failure, status in [(RuntimeError("no model"), "failed"), (KeyboardInterrupt(), "unknown")]:
+                with patch("agent_old_photo.pipeline.run_restore_stage", side_effect=failure) as runner:
+                    with self.assertRaises(PipelineExecutionError) as raised:
+                        run_restore_pipeline(PipelineOptions(source, root / "output", timestamp=status))
+                    self.assertEqual(runner.call_count, 1)
+                value = read_result(raised.exception.result.pipeline_dir)
+                self.assertEqual((value["status"], value["item_count"]), (status, 0))
+                with self.assertRaises(FileExistsError):
+                    run_restore_pipeline(PipelineOptions(source, root / "output", timestamp=status))
+
+    def test_cli_json_and_subprocess_logs_use_separate_streams(self):
+        import json
+        import subprocess
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = self.make_image(root)
+            # A real subprocess backend exercises stdout routing without downloading models.
+            harness = '''import sys
+from unittest.mock import patch
+from agent_old_photo.cli import main
+code = "import pathlib,shutil,sys; d=pathlib.Path(sys.argv[2]); d.mkdir(exist_ok=True); shutil.copyfile(sys.argv[1],d/'final.png'); print('model progress')"
+def command(paths, **kwargs):
+    return [sys.executable, '-c', code, str(kwargs['input_path']), str(kwargs['output_path'])]
+with patch('agent_old_photo.pipeline.build_restore_command', command):
+    raise SystemExit(main(sys.argv[1:]))
+'''
+            completed = subprocess.run([sys.executable, "-c", harness, "restore", str(source), str(root / "output"), "--json"], text=True, capture_output=True, check=False)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            value = json.loads(completed.stdout)
+            self.assertEqual(value["status"], "success")
+            self.assertIn("model progress", completed.stderr)
+            readback = subprocess.run([sys.executable, "-m", "agent_old_photo.cli", "inspect", value["result_path"], "--json"], text=True, capture_output=True, check=False)
+            self.assertEqual(json.loads(readback.stdout), value)
+
+    def test_contribution_uses_same_result_and_enforces_workspace(self):
+        import json
+        import os
+        import subprocess
+        from unittest.mock import patch
+        from agent_old_photo.pipeline import PipelineOptions, run_restore_pipeline
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = self.make_image(root)
+            with patch("agent_old_photo.pipeline.run_restore_stage", self.stage):
+                result = run_restore_pipeline(PipelineOptions(source, root / "output"))
+            request = {"schema_version": "opl-package-app-contribution-request.v1", "operation": "read", "ref": "old-photo.v1#review", "input": {"result_path": str(result.pipeline_dir)}}
+            env = {**os.environ, "OPL_PROFILE_WORKSPACE": str(root)}
+            command = [sys.executable, "app_contribution.py"]
+            completed = subprocess.run(command, input=json.dumps(request), text=True, capture_output=True, env=env)
+            response = json.loads(completed.stdout)
+            self.assertTrue(response["ok"])
+            self.assertEqual(response["result"]["data"]["run_id"], result.pipeline_dir.name)
+            self.assertEqual(len(response["result"]["items"][0]["artifacts"]), 2)
+            env["OPL_PROFILE_WORKSPACE"] = str(root / "output")
+            rejected = subprocess.run(command, input=json.dumps(request), text=True, capture_output=True, env=env)
+            self.assertFalse(json.loads(rejected.stdout)["ok"])
+            self.assertIn("outside", json.loads(rejected.stdout)["error"]["message"])
+
+    def test_json_argument_and_input_failures_are_structured(self):
+        import io
+        import json
+        from contextlib import redirect_stdout
+        from agent_old_photo.cli import main
+        for args, code in [(["restore", "--json"], 2), (["restore", "/missing/photo.png", "/unused/output", "--json"], 1)]:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(main(args), code)
+            self.assertEqual(json.loads(output.getvalue())["status"], "failed")
+
+
 if __name__ == "__main__":
     unittest.main()

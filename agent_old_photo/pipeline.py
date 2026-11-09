@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import csv
 import os
+import sys
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from .workflow import (
     build_restore_command,
     collect_input_images,
     copy_batch_stage_output,
+    is_supported_input_image,
 )
 
 
@@ -40,6 +42,7 @@ class PipelineOptions:
     include_intermediate_exports: bool = False
     workspace_root: Path | None = None
     timestamp: str | None = None
+    json_output: bool = False
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,18 @@ class PipelineResult:
     extract_dir: Path | None = None
     restore_dir: Path | None = None
     colorized_output: Path | None = None
+    status: str = "success"
+    input_count: int = 0
+    pipeline_kind: str = "restore"
+    parameters: dict = field(default_factory=dict)
+    items: tuple[dict, ...] = ()
+    error: dict | None = None
+
+
+class PipelineExecutionError(RuntimeError):
+    def __init__(self, result: PipelineResult):
+        super().__init__(result.error["message"] if result.error else result.status)
+        self.result = result
 
 
 def build_pipeline_dir_name(
@@ -93,14 +108,14 @@ def resolve_output_root(path: str | Path) -> Path:
 
 
 def current_timestamp(explicit: str | None = None) -> str:
-    return explicit or datetime.now().strftime("%Y%m%d_%H%M%S")
+    return explicit or datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
 
-def run_command(command: list[str], *, env_overrides: dict[str, str] | None = None, cwd: Path | None = None) -> None:
+def run_command(command: list[str], *, env_overrides: dict[str, str] | None = None, cwd: Path | None = None, json_output: bool = False) -> None:
     env = os.environ.copy()
     if env_overrides:
         env.update(env_overrides)
-    completed = subprocess.run(command, cwd=cwd, env=env, check=False)
+    completed = subprocess.run(command, cwd=cwd, env=env, check=False, stdout=sys.stderr if json_output else None)
     if completed.returncode != 0:
         raise subprocess.CalledProcessError(completed.returncode, command)
 
@@ -121,7 +136,7 @@ def find_restore_output(restore_dir: Path, preferred_name: str) -> Path:
         candidates.extend(sorted(path for path in restored_imgs.iterdir() if path.is_file()))
     candidates.extend(sorted(path for path in restore_dir.rglob("*") if path.is_file()))
     for candidate in candidates:
-        if candidate.is_file():
+        if candidate.is_file() and is_supported_input_image(candidate):
             return candidate
     raise FileNotFoundError(f"未找到修复结果: {restore_dir}")
 
@@ -142,7 +157,7 @@ def run_restore_stage(paths: RestorePaths, input_path: Path, restore_dir: Path, 
         bg_upsampler=options.bg_upsampler,
         face_upsample=True,
     )
-    run_command(command, env_overrides={"PYTORCH_ENABLE_MPS_FALLBACK": "1"})
+    run_command(command, env_overrides={"PYTORCH_ENABLE_MPS_FALLBACK": "1"}, json_output=options.json_output)
     return find_restore_output(restore_dir, input_path.name)
 
 
@@ -153,7 +168,7 @@ def run_extract_stage(paths: RestorePaths, input_path: Path, extract_dir: Path, 
         output_dir=extract_dir,
         cleanup_profile=options.cleanup_profile,
     )
-    run_command(command)
+    run_command(command, json_output=options.json_output)
     return ensure_extract_result(extract_dir)
 
 
@@ -165,7 +180,7 @@ def run_colorize_stage(paths: RestorePaths, input_path: Path, color_dir: Path, o
         output_path=color_output,
         model_name=options.ddcolor_model,
     )
-    run_command(command)
+    run_command(command, json_output=options.json_output)
     return color_output
 
 
@@ -184,144 +199,116 @@ def export_batch_outputs(
         copy_batch_stage_output(stage_outputs[stage_name], pipeline_dir / stage_name, item_relative_dir)
 
 
-def run_restore_pipeline(options: PipelineOptions) -> PipelineResult:
+def _run_pipeline(options: PipelineOptions, pipeline_kind: str) -> PipelineResult:
+    from .results import artifact_record, file_digest, write_result
+
+    validate_pipeline_options(options)
     paths = ensure_paths(options.workspace_root)
     input_path = resolve_existing_path(options.input_path)
-    output_root = resolve_output_root(options.output_root)
-    pipeline_dir = output_root / build_pipeline_dir_name(
-        "restore",
-        options.model,
-        current_timestamp(options.timestamp),
-        is_batch=input_path.is_dir(),
+    images = collect_input_images(input_path)
+    is_batch = input_path.is_dir()
+    pipeline_dir = resolve_output_root(options.output_root) / build_pipeline_dir_name(
+        pipeline_kind, options.model, current_timestamp(options.timestamp), is_batch=is_batch,
     )
-    pipeline_dir.mkdir(parents=True, exist_ok=True)
-    run_restore_stage(paths, input_path, pipeline_dir, options)
-    return PipelineResult(pipeline_dir=pipeline_dir, item_count=1, restore_dir=pipeline_dir)
+    # An existing run is an observation target, never an implicit retry target.
+    pipeline_dir.mkdir(exist_ok=False)
+    manifest_path = pipeline_dir / "manifest.tsv" if is_batch and pipeline_kind != "restore" else None
+    parameters = {
+        name: getattr(options, name) for name in (
+            "model", "ddcolor_model", "bg_upsampler", "fidelity", "upscale", "bg_tile",
+            "cleanup_profile", "include_intermediate_exports",
+        )
+    }
+    items = [{"id": str(image.relative_to(input_path)) if is_batch else image.name,
+              "status": "pending", "artifacts": [artifact_record(image, "original")]} for image in images]
+    extract_dir = restore_dir = colorized_output = None
+
+    def checkpoint(status: str, error: dict | None = None) -> PipelineResult:
+        result = PipelineResult(
+            pipeline_dir=pipeline_dir, item_count=sum(item["status"] == "success" for item in items),
+            input_count=len(images), manifest_path=manifest_path, extract_dir=extract_dir,
+            restore_dir=restore_dir, colorized_output=colorized_output, status=status,
+            pipeline_kind=pipeline_kind, parameters=parameters, items=tuple(items), error=error,
+        )
+        write_result(result)
+        return result
+
+    checkpoint("unknown")
+    manifest_handle = None
+    try:
+        if manifest_path:
+            manifest_handle = manifest_path.open("w", encoding="utf-8", newline="")
+            writer = csv.writer(manifest_handle, delimiter="\t")
+            writer.writerow(build_manifest_columns(pipeline_kind))
+            manifest_handle.flush()
+        for image_path, item in zip(images, items):
+            relative_dir = build_batch_item_relative_dir(input_path, image_path) if is_batch else Path(".")
+            item_dir = pipeline_dir / "items" / relative_dir if is_batch else pipeline_dir
+            item_dir.mkdir(parents=True, exist_ok=True)
+            item["status"] = "unknown"
+            checkpoint("unknown")
+            if file_digest(image_path) != item["artifacts"][0]["revision"]:
+                raise ValueError("Input changed after the run was created")
+            stage_outputs = {}
+            stage_input = image_path
+            if pipeline_kind != "restore":
+                extract_dir = item_dir / "extract"
+                extract_dir.mkdir(exist_ok=True)
+                stage_input = run_extract_stage(paths, image_path, extract_dir, options)
+                item["artifacts"].append(artifact_record(stage_input, "extracted"))
+                stage_outputs["final_extract"] = stage_input
+                checkpoint("unknown")
+            restore_dir = item_dir / "restore" if pipeline_kind != "restore" or is_batch else item_dir
+            restore_dir.mkdir(exist_ok=True)
+            restored = run_restore_stage(paths, stage_input, restore_dir, options)
+            item["artifacts"].append(artifact_record(restored, "restored"))
+            stage_outputs["final_restore"] = restored
+            checkpoint("unknown")
+            if pipeline_kind == "extract_restore_colorize":
+                color_dir = item_dir / "colorized"
+                color_dir.mkdir(exist_ok=True)
+                colorized_output = run_colorize_stage(paths, restored, color_dir, options)
+                item["artifacts"].append(artifact_record(colorized_output, "colorized"))
+                stage_outputs["final_colorized"] = colorized_output
+                checkpoint("unknown")
+            if manifest_path:
+                export_batch_outputs(pipeline_kind, pipeline_dir, relative_dir, stage_outputs,
+                                     include_intermediate_exports=options.include_intermediate_exports)
+                row = [str(image_path), str(item_dir), str(stage_outputs["final_extract"]), str(restored)]
+                if pipeline_kind == "extract_restore_colorize":
+                    row.append(str(colorized_output))
+                writer.writerow(row)
+                manifest_handle.flush()
+            if file_digest(image_path) != item["artifacts"][0]["revision"]:
+                raise ValueError("Input changed during processing")
+            item["status"] = "success"
+            checkpoint("partial")
+        return checkpoint("success")
+    except (Exception, KeyboardInterrupt) as exc:
+        error = {"code": type(exc).__name__, "message": str(exc) or "Pipeline interrupted"}
+        if isinstance(exc, KeyboardInterrupt):
+            status = "unknown"
+        else:
+            status = "partial" if any(len(item["artifacts"]) > 1 for item in items) else "failed"
+            for item in items:
+                if item["status"] == "unknown":
+                    item["status"] = "failed"
+        raise PipelineExecutionError(checkpoint(status, error)) from exc
+    finally:
+        if manifest_handle:
+            manifest_handle.close()
+
+
+def run_restore_pipeline(options: PipelineOptions) -> PipelineResult:
+    return _run_pipeline(options, "restore")
 
 
 def run_extract_restore_pipeline(options: PipelineOptions) -> PipelineResult:
-    paths = ensure_paths(options.workspace_root)
-    input_path = resolve_existing_path(options.input_path)
-    output_root = resolve_output_root(options.output_root)
-    timestamp = current_timestamp(options.timestamp)
-
-    if input_path.is_file():
-        pipeline_dir = output_root / build_pipeline_dir_name("extract_restore", options.model, timestamp, is_batch=False)
-        extract_dir = pipeline_dir / "extract"
-        restore_dir = pipeline_dir / "restore"
-        extract_dir.mkdir(parents=True, exist_ok=True)
-        restore_dir.mkdir(parents=True, exist_ok=True)
-        extract_result = run_extract_stage(paths, input_path, extract_dir, options)
-        run_restore_stage(paths, extract_result, restore_dir, options)
-        return PipelineResult(
-            pipeline_dir=pipeline_dir,
-            item_count=1,
-            extract_dir=extract_dir,
-            restore_dir=restore_dir,
-        )
-
-    images = collect_input_images(input_path)
-    pipeline_dir = output_root / build_pipeline_dir_name("extract_restore", options.model, timestamp, is_batch=True)
-    items_dir = pipeline_dir / "items"
-    manifest_path = pipeline_dir / "manifest.tsv"
-    items_dir.mkdir(parents=True, exist_ok=True)
-    with manifest_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.writer(handle, delimiter="\t")
-        writer.writerow(build_manifest_columns("extract_restore"))
-        for image_path in images:
-            item_relative_dir = build_batch_item_relative_dir(input_path, image_path)
-            item_dir = items_dir / item_relative_dir
-            extract_dir = item_dir / "extract"
-            restore_dir = item_dir / "restore"
-            extract_dir.mkdir(parents=True, exist_ok=True)
-            restore_dir.mkdir(parents=True, exist_ok=True)
-            extract_result = run_extract_stage(paths, image_path, extract_dir, options)
-            restore_result = run_restore_stage(paths, extract_result, restore_dir, options)
-            export_batch_outputs(
-                "extract_restore",
-                pipeline_dir,
-                item_relative_dir,
-                {
-                    "final_extract": extract_result,
-                    "final_restore": restore_result,
-                },
-                include_intermediate_exports=options.include_intermediate_exports,
-            )
-            writer.writerow((str(image_path), str(item_dir), str(extract_result), str(restore_result)))
-    return PipelineResult(pipeline_dir=pipeline_dir, item_count=len(images), manifest_path=manifest_path)
+    return _run_pipeline(options, "extract_restore")
 
 
 def run_extract_restore_colorize_pipeline(options: PipelineOptions) -> PipelineResult:
-    paths = ensure_paths(options.workspace_root)
-    input_path = resolve_existing_path(options.input_path)
-    output_root = resolve_output_root(options.output_root)
-    timestamp = current_timestamp(options.timestamp)
-
-    if input_path.is_file():
-        pipeline_dir = output_root / build_pipeline_dir_name(
-            "extract_restore_colorize",
-            options.model,
-            timestamp,
-            is_batch=False,
-        )
-        extract_dir = pipeline_dir / "extract"
-        restore_dir = pipeline_dir / "restore"
-        color_dir = pipeline_dir / "colorized"
-        extract_dir.mkdir(parents=True, exist_ok=True)
-        restore_dir.mkdir(parents=True, exist_ok=True)
-        color_dir.mkdir(parents=True, exist_ok=True)
-        extract_result = run_extract_stage(paths, input_path, extract_dir, options)
-        restore_result = run_restore_stage(paths, extract_result, restore_dir, options)
-        colorized_output = run_colorize_stage(paths, restore_result, color_dir, options)
-        return PipelineResult(
-            pipeline_dir=pipeline_dir,
-            item_count=1,
-            manifest_path=None,
-            extract_dir=extract_dir,
-            restore_dir=restore_dir,
-            colorized_output=colorized_output,
-        )
-
-    images = collect_input_images(input_path)
-    pipeline_dir = output_root / build_pipeline_dir_name(
-        "extract_restore_colorize",
-        options.model,
-        timestamp,
-        is_batch=True,
-    )
-    items_dir = pipeline_dir / "items"
-    manifest_path = pipeline_dir / "manifest.tsv"
-    items_dir.mkdir(parents=True, exist_ok=True)
-    with manifest_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.writer(handle, delimiter="\t")
-        writer.writerow(build_manifest_columns("extract_restore_colorize"))
-        for image_path in images:
-            item_relative_dir = build_batch_item_relative_dir(input_path, image_path)
-            item_dir = items_dir / item_relative_dir
-            extract_dir = item_dir / "extract"
-            restore_dir = item_dir / "restore"
-            color_dir = item_dir / "colorized"
-            extract_dir.mkdir(parents=True, exist_ok=True)
-            restore_dir.mkdir(parents=True, exist_ok=True)
-            color_dir.mkdir(parents=True, exist_ok=True)
-            extract_result = run_extract_stage(paths, image_path, extract_dir, options)
-            restore_result = run_restore_stage(paths, extract_result, restore_dir, options)
-            colorized_output = run_colorize_stage(paths, restore_result, color_dir, options)
-            export_batch_outputs(
-                "extract_restore_colorize",
-                pipeline_dir,
-                item_relative_dir,
-                {
-                    "final_extract": extract_result,
-                    "final_restore": restore_result,
-                    "final_colorized": colorized_output,
-                },
-                include_intermediate_exports=options.include_intermediate_exports,
-            )
-            writer.writerow(
-                (str(image_path), str(item_dir), str(extract_result), str(restore_result), str(colorized_output))
-            )
-    return PipelineResult(pipeline_dir=pipeline_dir, item_count=len(images), manifest_path=manifest_path)
+    return _run_pipeline(options, "extract_restore_colorize")
 
 
 def validate_pipeline_options(options: PipelineOptions) -> None:
@@ -335,6 +322,7 @@ __all__ = [
     "PIPELINE_KINDS",
     "PipelineOptions",
     "PipelineResult",
+    "PipelineExecutionError",
     "RESTORE_MODELS",
     "build_manifest_columns",
     "build_pipeline_dir_name",

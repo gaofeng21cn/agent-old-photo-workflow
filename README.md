@@ -158,3 +158,41 @@ Before claiming the workflow is healthy, run one real end-to-end command on an a
 ```bash
 bash run_extract_restore_colorize.sh <input> <output> codeformer
 ```
+
+
+## Agent results and shared review
+
+Append `--json` to any pipeline command. Standard output contains one
+`old-photo.pipeline-result.v1` object; model progress goes to standard error.
+The default command still prints the output directory. Each run owns a
+`result.json` next to its existing stage files and batch `manifest.tsv`:
+
+```bash
+agent-old-photo restore input.png ./output realesrgan --json
+agent-old-photo inspect /absolute/run/result.json --json
+agent-old-photo review /absolute/run/result.json --expected-revision sha256:... --json
+```
+
+The result includes the run directory identity, parameters, input count,
+completed item count, error, and exact original/extracted/restored/colorized
+artifact paths with SHA-256 revisions. `success` means all requested stages
+finished; `partial` retains usable stages when later work failed; `failed`
+means no completed output stage was recorded. `unknown` is an in-flight or
+interrupted stage whose outcome has not been established. Inspection is
+read-only and never retries. The batch TSV lists completed items. A run directory
+is never reused, and batch restoration processes each source into its own item
+directory so filenames cannot collide. Human quality acceptance remains separate.
+
+`opl-package.json` declares the standard read-only `old-photo.review`
+contribution and `app-contribution-adapter.json` binds it to the same owner
+readback. Pass `result_path` relative to the registered profile workspace,
+optionally with `expected_revision`. The view offers exact original and stage
+references to the host's existing media viewer; it does not claim an inline
+image-comparison editor. Missing or changed files are marked in the readback.
+The adapter requires `OPL_PROFILE_WORKSPACE` and resolves both result and artifact
+paths within it. It uses only Python's standard library, so review does not load
+model dependencies. Model execution still uses the normal setup described above.
+
+This Package declaration is `development_only` with no publication reference.
+It is ready for source/development integration; it does not claim a published or
+installed carrier. Private photos and generated result files are not packaged.

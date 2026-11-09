@@ -158,3 +158,25 @@ Agent 侧约定：
 ```bash
 bash run_extract_restore_colorize.sh <input> <output> codeformer
 ```
+
+
+## Agent 结果与共享审阅
+
+三种流水线均支持 `--json`：stdout 只输出一个
+`old-photo.pipeline-result.v1`，模型日志写 stderr；默认命令仍输出运行目录。
+每次运行在现有阶段文件及批处理 `manifest.tsv` 旁保存 `result.json`。
+`agent-old-photo inspect <result.json> --json` 可只读回读；
+`agent-old-photo review <result.json> --expected-revision sha256:... --json`
+提供同一运行的原图、提取、修复、上色产物引用及 SHA-256 版本。
+
+`success` 表示全部请求阶段完成，`partial` 保留失败前可用阶段，`failed`
+表示没有已记录的完成输出，`unknown` 表示进行中或中断后尚未确定的阶段结果。
+回读不自动重跑；批处理 TSV 仅记录完成项，修复目录按输入逐项隔离，既有运行
+目录不可复用。生成成功与人的修复质量接受分别记录。
+
+标准 Package 的 `old-photo.review` 是只读共享产物视图，通过原有媒体查看器
+打开原图和阶段结果，并标记已改变或缺失的文件。它不提供独立双图编辑器。
+Agent 传入注册工作区内的 `result_path` 和可选 `expected_revision`；adapter
+要求 `OPL_PROFILE_WORKSPACE`，解析软链接后校验结果及产物均位于该工作区。
+审阅只依赖 Python 标准库，不加载模型。描述符保持 `development_only`、
+`publication_ref: null`，源码接入不代表已发行或已安装；照片与运行结果不打包。

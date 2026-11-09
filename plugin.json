@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agent-old-photo-workflow",
+  "version": "0.1.0",
+  "description": "Run the existing old-photo workflow and review exact original and stage artifacts.",
+  "author": {"name": "gaofeng21cn"},
+  "repository": "https://github.com/gaofeng21cn/agent-old-photo-workflow",
+  "license": "Apache-2.0"
+}

@@ -1,34 +1,4 @@
-from .workflow import (
-    DEFAULT_PYTHON,
-    DOCALIGNER_FILE_ID,
-    DOCALIGNER_MODEL_NAME,
-    InnerContentRectDetectionError,
-    MAX_VALID_INNER_CONTENT_MARGIN_RATIO,
-    MIN_VALID_INNER_CONTENT_AREA_RATIO,
-    SUPPORTED_INPUT_IMAGE_SUFFIXES,
-    build_batch_export_stage_names,
-    build_batch_item_relative_dir,
-    build_full_frame_quad,
-    RestorePaths,
-    build_border_band_mask,
-    build_bootstrap_commands,
-    build_codeformer_command,
-    build_colorize_command,
-    build_extract_bootstrap_commands,
-    build_extract_command,
-    build_restore_command,
-    build_paths,
-    build_weight_downloads,
-    collect_input_images,
-    compute_rectified_size,
-    copy_batch_stage_output,
-    crop_image_to_inner_content_quad,
-    default_workspace_dir,
-    detect_inner_content_quad,
-    is_plausible_inner_content_quad,
-    is_supported_input_image,
-    order_quad_points,
-)
+"""Public workflow helpers, loaded on demand for lightweight read-only tools."""
 
 __all__ = [
     "DEFAULT_PYTHON",
@@ -61,3 +31,12 @@ __all__ = [
     "is_supported_input_image",
     "order_quad_points",
 ]
+
+
+def __getattr__(name):
+    if name in __all__:
+        from . import workflow
+        value = getattr(workflow, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(name)
