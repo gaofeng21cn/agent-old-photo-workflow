@@ -125,17 +125,19 @@
     ],
     "digest": "sha256:9792f286e5197df991c89e35414809c22df8d2580e646e60941a4779bf89e361"
   },
-  "display_name_i18n": {
-    "zh-CN": "老照片工作流",
-    "en-US": "Agent Old Photo Workflow"
-  },
-  "description_i18n": {
-    "zh-CN": "在本地提取、拉正、修复和上色老照片，并审阅原图与各阶段结果。",
-    "en-US": "Extract, rectify, restore, and colorize old photos locally, with reviewable original and stage results."
-  },
-  "session_routing_summary_i18n": {
-    "zh-CN": "通过老照片 CLI 处理明确选择的图片；模型与照片保留在本地工作区。",
-    "en-US": "Use the Old Photo CLI for explicitly selected images; keep models and photos in the local workspace."
-  },
-  "home_shortcuts": []
+  "presentation": {
+    "display_name_i18n": {
+      "zh-CN": "老照片工作流",
+      "en-US": "Agent Old Photo Workflow"
+    },
+    "description_i18n": {
+      "zh-CN": "在本地提取、拉正、修复和上色老照片，并审阅原图与各阶段结果。",
+      "en-US": "Extract, rectify, restore, and colorize old photos locally, with reviewable original and stage results."
+    },
+    "session_routing_summary_i18n": {
+      "zh-CN": "通过老照片 CLI 处理明确选择的图片；模型与照片保留在本地工作区。",
+      "en-US": "Use the Old Photo CLI for explicitly selected images; keep models and photos in the local workspace."
+    },
+    "home_shortcuts": []
+  }
 }
