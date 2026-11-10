@@ -111,4 +111,3 @@ def canonical_ddcolor_repo_id(model_name: str) -> str:
 
 def build_ddcolor_model_dir(repo_root: Path, model_name: str) -> Path:
     return repo_root / "models" / "ddcolor" / canonical_ddcolor_repo_id(model_name).split("/")[-1]
-

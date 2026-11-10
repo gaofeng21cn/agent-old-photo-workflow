@@ -123,7 +123,7 @@
       "setup_extract_env.sh",
       "skills/agent-old-photo/SKILL.md"
     ],
-    "digest": "sha256:1e3d3426b6fc6d3524f25af4e810e94613af393cdbde84bc8c0908c94ada54e7"
+    "digest": "sha256:9792f286e5197df991c89e35414809c22df8d2580e646e60941a4779bf89e361"
   },
   "display_name_i18n": {
     "zh-CN": "老照片工作流",
