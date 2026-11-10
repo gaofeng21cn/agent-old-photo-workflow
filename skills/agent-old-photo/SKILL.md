@@ -3,9 +3,14 @@ name: agent-old-photo
 description: Restore or colorize scanned paper photographs with the existing Old Photo CLI, and inspect exact original and stage outputs from a prior run.
 ---
 
-Use the installed `agent-old-photo` CLI. Runtime models and private images stay in
-its existing external workspace; installation and model setup are described in
-[the package README](../../README.md).
+Resolve the package root from this Skill's directory (`../..`) and use that
+package's `.venv/bin/agent-old-photo` CLI. If its runtime has not been prepared,
+follow `setup_env.sh` and, for extraction, `setup_extract_env.sh` in
+[the package README](../../README.md) before processing images. A Codex plugin
+installation supplies this Skill and the shared review adapter; it does not
+install model runtimes or approve a photo-processing task. Do not silently use
+an unrelated CLI version from `PATH`. Runtime models and private images stay in
+the existing external workspace.
 
 Choose `restore`, `extract-restore`, or `extract-restore-colorize` with explicit
 input and output paths. Add `--json` for machine output. Keep the returned

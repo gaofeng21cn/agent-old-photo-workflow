@@ -28,6 +28,21 @@
         },
         "additionalProperties": false
       }
+    },
+    "old-photo.v1#status": {
+      "kind": "command",
+      "cwd": "package",
+      "argv": [
+        "python3",
+        "./app_contribution.py"
+      ],
+      "stdin": "request_json",
+      "passthrough": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
     }
   },
   "actions": {}

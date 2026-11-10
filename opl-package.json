@@ -54,6 +54,16 @@
     "schema_version": "opl-app-contributions.v1",
     "views": [
       {
+        "view_id": "old-photo.status",
+        "view_type": "service_status",
+        "title_i18n": {
+          "zh-CN": "老照片运行环境",
+          "en-US": "Old-photo runtime"
+        },
+        "data_ref": "old-photo.v1#status",
+        "command_ids": []
+      },
+      {
         "view_id": "old-photo.review",
         "view_type": "artifact_view",
         "title_i18n": {
@@ -66,6 +76,14 @@
     ],
     "commands": [],
     "ui": [
+      {
+        "contribution_id": "old-photo.status",
+        "slot": "settings.section",
+        "contribution_kind": "view",
+        "trust_tier": "declarative",
+        "scope": "root",
+        "view_id": "old-photo.status"
+      },
       {
         "contribution_id": "old-photo.review",
         "slot": "settings.section",
@@ -80,12 +98,16 @@
     "algorithm": "sha256",
     "canonicalization": "ordered_path_length_file_length_bytes",
     "paths": [
+      ".agents/plugins/marketplace.json",
+      ".codex-plugin/plugin.json",
       "README.md",
       "README.zh-CN.md",
       "agent_old_photo/__init__.py",
       "agent_old_photo/cli.py",
       "agent_old_photo/pipeline.py",
       "agent_old_photo/results.py",
+      "agent_old_photo/runtime_paths.py",
+      "agent_old_photo/runtime_status.py",
       "agent_old_photo/workflow.py",
       "app-contribution-adapter.json",
       "app_contribution.py",
@@ -101,6 +123,19 @@
       "setup_extract_env.sh",
       "skills/agent-old-photo/SKILL.md"
     ],
-    "digest": "sha256:7449ffe2963f2e7b42d85f6da1b8f739cfc442e4aa7b641c2fd7314fef5367bb"
-  }
+    "digest": "sha256:1e3d3426b6fc6d3524f25af4e810e94613af393cdbde84bc8c0908c94ada54e7"
+  },
+  "display_name_i18n": {
+    "zh-CN": "老照片工作流",
+    "en-US": "Agent Old Photo Workflow"
+  },
+  "description_i18n": {
+    "zh-CN": "在本地提取、拉正、修复和上色老照片，并审阅原图与各阶段结果。",
+    "en-US": "Extract, rectify, restore, and colorize old photos locally, with reviewable original and stage results."
+  },
+  "session_routing_summary_i18n": {
+    "zh-CN": "通过老照片 CLI 处理明确选择的图片；模型与照片保留在本地工作区。",
+    "en-US": "Use the Old Photo CLI for explicitly selected images; keep models and photos in the local workspace."
+  },
+  "home_shortcuts": []
 }

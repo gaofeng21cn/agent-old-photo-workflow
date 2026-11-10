@@ -48,6 +48,37 @@ Its job is to provide one reproducible surface that can:
 
 ## Quick Start
 
+### Application management
+
+The catalog display name is **Agent Old Photo Workflow**; its stable Package ID
+is `agent-old-photo-workflow`. The source version is `0.1.0`. The Codex plugin
+uses the same identity and supports native install, refresh, enable/disable,
+and removal through OPL application management. Its preview source is an exact
+owner commit; `development_only` describes protected release admission, not
+whether an installed plugin can be managed.
+
+For a source checkout, add and install the native plugin:
+
+```bash
+codex plugin marketplace add /absolute/path/to/agent-old-photo-workflow
+codex plugin add agent-old-photo-workflow@agent-old-photo-workflow --json
+codex plugin list --marketplace agent-old-photo-workflow --json
+```
+
+The installed plugin includes the CLI source, Skill, setup scripts, and shared
+review adapter. Preparing model runtimes remains a separate step below. The
+native plugin manager owns installation state and removal; removing the plugin
+does not remove the external model/photo workspace. Reinstalling the selected
+source revision refreshes plugin bytes; it does not approve output quality.
+
+The `old-photo.status` shared view reads runtime and model-file presence through
+the same adapter using only Python's standard library. It distinguishes missing
+restoration setup from optional extraction/colorization, preserves unknown model
+validation, and reads neither photos nor model bytes. Installing the plugin does
+not make unprepared model runtimes appear ready.
+
+### Photo runtime
+
 Set up the runtime from the repository root:
 
 ```bash

@@ -6,8 +6,10 @@ import sys
 from pathlib import Path
 
 from agent_old_photo.results import read_result, review_result
+from agent_old_photo.runtime_status import runtime_status
 
 REF = "old-photo.v1#review"
+STATUS_REF = "old-photo.v1#status"
 REQUEST_SCHEMA = "opl-package-app-contribution-request.v1"
 RESPONSE_SCHEMA = "opl-package-app-contribution-response.v1"
 INPUT_SCHEMA = {
@@ -20,9 +22,13 @@ INPUT_SCHEMA = {
 
 
 def read(request: dict) -> dict:
-    if request.get("schema_version") != REQUEST_SCHEMA or request.get("operation") != "read" or request.get("ref") != REF:
+    if request.get("schema_version") != REQUEST_SCHEMA or request.get("operation") != "read" or request.get("ref") not in (REF, STATUS_REF):
         raise ValueError("Unsupported contribution request")
     value = request.get("input", {})
+    if request["ref"] == STATUS_REF:
+        if value != {}:
+            raise ValueError("Status does not accept task or path inputs")
+        return runtime_status()
     if not isinstance(value, dict) or set(value) - set(INPUT_SCHEMA["properties"]):
         raise ValueError("Invalid contribution input")
     if not value.get("result_path"):
@@ -42,7 +48,9 @@ def read(request: dict) -> dict:
 def main() -> int:
     response = {"schema_version": RESPONSE_SCHEMA, "ref": REF, "operation": "read"}
     try:
-        response.update(ok=True, result=read(json.load(sys.stdin)))
+        request = json.load(sys.stdin)
+        response["ref"] = request.get("ref", REF)
+        response.update(ok=True, result=read(request))
     except (OSError, ValueError, TypeError, KeyError) as exc:
         response.update(ok=False, error={"code": type(exc).__name__, "message": str(exc)})
     print(json.dumps(response, ensure_ascii=False))
