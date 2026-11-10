@@ -1,0 +1,20 @@
+{
+  "name": "agent-old-photo-workflow",
+  "interface": {
+    "displayName": "Agent Old Photo Workflow"
+  },
+  "plugins": [
+    {
+      "name": "agent-old-photo-workflow",
+      "source": {
+        "source": "local",
+        "path": "."
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
