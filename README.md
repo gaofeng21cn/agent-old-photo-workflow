@@ -51,25 +51,24 @@ Its job is to provide one reproducible surface that can:
 ### Application management
 
 The catalog display name is **Agent Old Photo Workflow**; its stable Package ID
-is `agent-old-photo-workflow`. The source version is `0.1.0`. The Codex plugin
-uses the same identity and supports native install, refresh, enable/disable,
-and removal through OPL application management. Its preview source is an exact
-owner commit; `development_only` describes protected release admission, not
-whether an installed plugin can be managed.
-
-For a source checkout, add and install the native plugin:
+is `agent-old-photo-workflow`. Install and manage versioned Package artifacts
+through OPL Software Center or the same CLI:
 
 ```bash
-codex plugin marketplace add /absolute/path/to/agent-old-photo-workflow
-codex plugin add agent-old-photo-workflow@agent-old-photo-workflow --json
-codex plugin list --marketplace agent-old-photo-workflow --json
+opl packages install agent-old-photo-workflow --json
+opl packages status --package-id agent-old-photo-workflow --json
+opl packages update agent-old-photo-workflow --json
 ```
 
-The installed plugin includes the CLI source, Skill, setup scripts, and shared
-review adapter. Preparing model runtimes remains a separate step below. The
-native plugin manager owns installation state and removal; removing the plugin
-does not remove the external model/photo workspace. Reinstalling the selected
-source revision refreshes plugin bytes; it does not approve output quality.
+The publication source is
+`ghcr.io/gaofeng21cn/one-person-lab-packages/agent-old-photo-workflow`.
+An annotated source tag binds each immutable version. Development checkouts are
+explicit developer overrides; they are not a software-center distribution channel.
+
+The installed plugin includes the CLI, Skill, setup scripts, and shared review
+adapter. Preparing model runtimes remains a separate step below. The native
+plugin manager owns installation state and removal; removing the Package keeps
+the external model/photo workspace. Package updates do not approve photo quality.
 
 The `old-photo.status` shared view reads runtime and model-file presence through
 the same adapter using only Python's standard library. It distinguishes missing
@@ -224,6 +223,6 @@ The adapter requires `OPL_PROFILE_WORKSPACE` and resolves both result and artifa
 paths within it. It uses only Python's standard library, so review does not load
 model dependencies. Model execution still uses the normal setup described above.
 
-This Package declaration is `development_only` with no publication reference.
-It is ready for source/development integration; it does not claim a published or
-installed carrier. Private photos and generated result files are not packaged.
+The Package uses the shared OPL OCI publication and installation contract.
+Private photos, model weights and generated result files are not packaged.
+Photo quality is reviewed on the selected output independently of installation.
