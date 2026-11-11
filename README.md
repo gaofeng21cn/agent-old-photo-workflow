@@ -56,7 +56,7 @@ through OPL Software Center or the same CLI:
 
 ```bash
 opl packages install agent-old-photo-workflow --json
-opl packages status agent-old-photo-workflow --json
+opl packages status --package-id agent-old-photo-workflow --json
 opl packages update agent-old-photo-workflow --json
 ```
 
