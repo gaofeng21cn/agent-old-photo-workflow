@@ -51,22 +51,22 @@
 ### 应用管理
 
 目录正式名称为 **Agent Old Photo Workflow**，中文名称为“老照片工作流”；
-稳定 Package ID 为 `agent-old-photo-workflow`，源码版本为 `0.1.0`。
-Codex 插件沿用同一身份，通过 OPL 应用管理使用原生安装、刷新、启停和移除能力。
-预览来源绑定 owner 的精确提交；`development_only` 表示尚未进入受保护发行渠道，
-不表示已安装插件不能纳入管理。
-
-源码 checkout 的原生插件接入方式：
+稳定 Package ID 为 `agent-old-photo-workflow`。通过 OPL 软件中心或同一 CLI
+安装、检查和更新正式版本：
 
 ```bash
-codex plugin marketplace add /absolute/path/to/agent-old-photo-workflow
-codex plugin add agent-old-photo-workflow@agent-old-photo-workflow --json
-codex plugin list --marketplace agent-old-photo-workflow --json
+opl packages install agent-old-photo-workflow --json
+opl packages status agent-old-photo-workflow --json
+opl packages update agent-old-photo-workflow --json
 ```
 
-安装包包含 CLI 源码、Skill、准备脚本和共享审阅 adapter；照片模型运行环境仍按下文
-单独准备。安装状态与卸载由原生插件管理器负责，移除插件保留外部模型和照片工作区。
-重新安装所选源码修订可刷新插件字节，不代表修复结果已获得质量接受。
+发行源为 `ghcr.io/gaofeng21cn/one-person-lab-packages/agent-old-photo-workflow`。
+每个不可变版本绑定 annotated 源码标签；开发 checkout 仅作为显式开发覆盖，
+不作为软件中心分发渠道。
+
+安装包包含 CLI、Skill、准备脚本和共享审阅 adapter；照片模型运行环境仍按下文
+单独准备。安装状态与卸载由原生插件管理器负责，移除 Package 保留外部模型和
+照片工作区。软件更新与照片质量接受分别记录。
 
 `old-photo.status` 共享视图通过同一 adapter 只读检查运行环境和模型文件是否存在，
 仅依赖 Python 标准库，区分修复环境缺失与可选的提取、上色准备状态。
@@ -205,5 +205,5 @@ bash run_extract_restore_colorize.sh <input> <output> codeformer
 打开原图和阶段结果，并标记已改变或缺失的文件。它不提供独立双图编辑器。
 Agent 传入注册工作区内的 `result_path` 和可选 `expected_revision`；adapter
 要求 `OPL_PROFILE_WORKSPACE`，解析软链接后校验结果及产物均位于该工作区。
-审阅只依赖 Python 标准库，不加载模型。描述符保持 `development_only`、
-`publication_ref: null`，源码接入不代表已发行或已安装；照片与运行结果不打包。
+审阅只依赖 Python 标准库，不加载模型。Package 使用统一 OPL OCI 发行和安装合同；
+私人照片、模型权重与运行结果不打包，修复质量按选定结果单独审阅。

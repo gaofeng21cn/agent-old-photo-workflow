@@ -3,11 +3,11 @@
   "package_id": "agent-old-photo-workflow",
   "display_name": "Agent Old Photo Workflow",
   "publisher": "gaofeng21cn",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "source": "first_party_repo_local",
   "source_repo": "https://github.com/gaofeng21cn/agent-old-photo-workflow.git",
   "package_role": "capability_package",
-  "publication_channel_admission": "development_only",
+  "publication_channel_admission": "admitted",
   "capability_abi": {
     "id": "old-photo.v1",
     "version": "1.0.0",
@@ -47,7 +47,7 @@
       "plugin_selector": "agent-old-photo-workflow@agent-old-photo-workflow",
       "executor_route": "codex_cli",
       "marketplace_source": "gaofeng21cn/agent-old-photo-workflow",
-      "publication_ref": null
+      "publication_ref": "ghcr.io/gaofeng21cn/one-person-lab-packages/agent-old-photo-workflow:latest-stable"
     }
   },
   "app_contributions": {
@@ -123,7 +123,7 @@
       "setup_extract_env.sh",
       "skills/agent-old-photo/SKILL.md"
     ],
-    "digest": "sha256:e5e4b9428ba208230e0f61003804b11a4aa06019f836f003f7ece51ccb260d2a"
+    "digest": "sha256:3a54a47f94816673f005b9a3c7741d5a9f66f71068bf4875c53b640aa87e1075"
   },
   "presentation": {
     "display_name_i18n": {
@@ -138,6 +138,8 @@
       "zh-CN": "通过老照片 CLI 处理明确选择的图片；模型与照片保留在本地工作区。",
       "en-US": "Use the Old Photo CLI for explicitly selected images; keep models and photos in the local workspace."
     },
-    "home_shortcuts": []
-  }
+    "home_shortcuts": [],
+    "software_type": "application"
+  },
+  "management_scope": "local_product"
 }
