@@ -1,8 +1,10 @@
 <p align="center">
-  <strong>English</strong> | <a href="./README.zh-CN.md">中文</a>
+  <img src="assets/branding/agent-old-photo-workflow-logo.png" alt="OPL Photo Restore logo" width="132" />
 </p>
 
-<h1 align="center">Agent Old Photo Workflow</h1>
+<p align="center"><strong>English</strong> | <a href="./README.zh-CN.md">中文</a></p>
+
+<h1 align="center">OPL Photo Restore</h1>
 
 <p align="center"><strong>Agent-first old photo extraction, restoration, and colorization on a local runtime</strong></p>
 <p align="center">Rectification · Cleanup · Restoration · Colorization</p>
@@ -50,7 +52,7 @@ Its job is to provide one reproducible surface that can:
 
 ### Application management
 
-The catalog display name is **Agent Old Photo Workflow**; its stable Package ID
+The catalog display name is **OPL Photo Restore**; its stable Package ID
 is `agent-old-photo-workflow`. Install and manage versioned Package artifacts
 through OPL Software Center or the same CLI:
 

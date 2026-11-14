@@ -1,6 +1,6 @@
 {
   "name": "agent-old-photo-workflow",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Run the existing old-photo workflow and review exact original and stage artifacts.",
   "author": {
     "name": "gaofeng21cn"
@@ -9,11 +9,13 @@
   "license": "Apache-2.0",
   "skills": "./skills/",
   "interface": {
-    "displayName": "Agent Old Photo Workflow",
+    "displayName": "OPL Photo Restore",
     "shortDescription": "Local old-photo restoration and stage review.",
     "longDescription": "Extract, rectify, restore, and optionally colorize photographed paper prints. Review the original and each completed stage through the shared OPL view. Model setup is separate from installing the plugin.",
     "developerName": "OPL",
     "category": "Productivity",
-    "websiteURL": "https://github.com/gaofeng21cn/agent-old-photo-workflow"
+    "websiteURL": "https://github.com/gaofeng21cn/agent-old-photo-workflow",
+    "logo": "./assets/branding/agent-old-photo-workflow-logo.png",
+    "composerIcon": "./assets/branding/agent-old-photo-workflow-logo.png"
   }
 }

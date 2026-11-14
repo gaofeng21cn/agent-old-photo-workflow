@@ -1,8 +1,10 @@
 <p align="center">
-  <a href="./README.md">English</a> | <strong>中文</strong>
+  <img src="assets/branding/agent-old-photo-workflow-logo.png" alt="OPL Photo Restore logo" width="132" />
 </p>
 
-<h1 align="center">Agent Old Photo Workflow</h1>
+<p align="center"><a href="./README.md">English</a> | <strong>中文</strong></p>
+
+<h1 align="center">OPL Photo Restore</h1>
 
 <p align="center"><strong>面向 Agent 的本地老照片提取、修复与上色工作流</strong></p>
 <p align="center">拉正提取 · 纸面清理 · 修复增强 · 黑白上色</p>
@@ -50,7 +52,7 @@
 
 ### 应用管理
 
-目录正式名称为 **Agent Old Photo Workflow**，中文名称为“老照片工作流”；
+目录正式名称为 **OPL Photo Restore**，中文名称为“老照片工作流”；
 稳定 Package ID 为 `agent-old-photo-workflow`。通过 OPL 软件中心或同一 CLI
 安装、检查和更新正式版本：
 

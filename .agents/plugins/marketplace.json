@@ -1,7 +1,7 @@
 {
   "name": "agent-old-photo-workflow",
   "interface": {
-    "displayName": "Agent Old Photo Workflow"
+    "displayName": "OPL Photo Restore"
   },
   "plugins": [
     {
