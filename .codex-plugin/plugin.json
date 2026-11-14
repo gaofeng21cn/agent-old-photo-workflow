@@ -1,6 +1,6 @@
 {
   "name": "agent-old-photo-workflow",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Run the existing old-photo workflow and review exact original and stage artifacts.",
   "author": {
     "name": "gaofeng21cn"

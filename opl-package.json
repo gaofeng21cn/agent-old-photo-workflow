@@ -3,7 +3,7 @@
   "package_id": "agent-old-photo-workflow",
   "display_name": "OPL Photo Restore",
   "publisher": "gaofeng21cn",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "source": "first_party_repo_local",
   "source_repo": "https://github.com/gaofeng21cn/agent-old-photo-workflow.git",
   "package_role": "capability_package",
@@ -124,7 +124,7 @@
       "skills/agent-old-photo/SKILL.md",
       "assets/branding/agent-old-photo-workflow-logo.png"
     ],
-    "digest": "sha256:39c3a3d7633fe7571cd20269aa555b939c9c5374f6fa007d9d0e311ec24e281d"
+    "digest": "sha256:80ff85929e8a818b51e4c8c1bf6e062a78583013bccb4db71408b849b64e1036"
   },
   "presentation": {
     "display_name_i18n": {
