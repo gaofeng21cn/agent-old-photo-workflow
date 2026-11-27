@@ -11,10 +11,30 @@ from agent_old_photo.runtime_status import runtime_status
 
 
 class RuntimeStatusTests(unittest.TestCase):
+    @staticmethod
+    def _manifest() -> dict:
+        return {
+            "schema_version": "opl.package.v2",
+            "identity": {
+                "id": "agent-old-photo-workflow",
+                "version": "0.1.0",
+                "intent": "extension",
+                "name": {
+                    "zh-CN": "OPL Photo Restore",
+                    "en-US": "OPL Photo Restore",
+                },
+                "summary": {
+                    "zh-CN": "本地老照片处理",
+                    "en-US": "Local old-photo processing",
+                },
+                "publisher": "gaofeng21cn",
+            },
+        }
+
     def test_missing_runtime_reports_setup_without_creating_external_state(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "opl-package.json").write_text(json.dumps({"package_id": "agent-old-photo-workflow", "display_name": "Agent Old Photo Workflow", "version": "0.1.0"}))
+            (root / "opl-package.json").write_text(json.dumps(self._manifest()))
             external = root / "private-runtime"
             value = runtime_status(root, external)
             self.assertEqual(value["state"], "attention")
@@ -26,7 +46,7 @@ class RuntimeStatusTests(unittest.TestCase):
     def test_present_files_do_not_claim_model_or_quality_acceptance(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "opl-package.json").write_text(json.dumps({"package_id": "agent-old-photo-workflow", "display_name": "Agent Old Photo Workflow", "version": "0.1.0"}))
+            (root / "opl-package.json").write_text(json.dumps(self._manifest()))
             paths = build_paths(root, root / "runtime")
             for file in [paths.venv_python, *[file for _, file in build_weight_downloads(paths)]]:
                 file.parent.mkdir(parents=True, exist_ok=True)
@@ -45,6 +65,7 @@ class RuntimeStatusTests(unittest.TestCase):
             self.assertTrue(value["ok"])
             self.assertEqual(value["ref"], request["ref"])
             self.assertEqual(value["result"]["data"]["package_id"], "agent-old-photo-workflow")
+            self.assertEqual(value["result"]["data"]["display_name"], "OPL Photo Restore")
             self.assertEqual(list(Path(external).iterdir()), [])
 
 
