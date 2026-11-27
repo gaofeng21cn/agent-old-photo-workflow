@@ -57,9 +57,9 @@ is `agent-old-photo-workflow`. Install and manage versioned Package artifacts
 through OPL Software Center or the same CLI:
 
 ```bash
-opl packages install agent-old-photo-workflow --json
-opl packages status --package-id agent-old-photo-workflow --json
-opl packages update agent-old-photo-workflow --json
+opl pack install ghcr.io/gaofeng21cn/one-person-lab-packages/agent-old-photo-workflow --json
+opl pack inspect agent-old-photo-workflow --json
+opl pack update agent-old-photo-workflow --json
 ```
 
 The publication source is
@@ -67,15 +67,16 @@ The publication source is
 An annotated source tag binds each immutable version. Development checkouts are
 explicit developer overrides; they are not a software-center distribution channel.
 
-The installed plugin includes the CLI, Skill, setup scripts, and shared review
-adapter. Preparing model runtimes remains a separate step below. The native
-plugin manager owns installation state and removal; removing the Package keeps
-the external model/photo workspace. Package updates do not approve photo quality.
+The Package (`opl-package.json`, `opl.package.v2`) includes the CLI, Skill,
+setup scripts, `provides.contribution_handler`, and `ui.declarative.views`;
+preparing model runtimes remains a separate step below. OPL Framework (`opl pack`)
+owns installation state and removal; removing the Package keeps the external
+model/photo workspace. Package updates do not approve photo quality.
 
 The `old-photo.status` shared view reads runtime and model-file presence through
-the same adapter using only Python's standard library. It distinguishes missing
+the declared contribution handler using only Python's standard library. It distinguishes missing
 restoration setup from optional extraction/colorization, preserves unknown model
-validation, and reads neither photos nor model bytes. Installing the plugin does
+validation, and reads neither photos nor model bytes. Installing the Package does
 not make unprepared model runtimes appear ready.
 
 ### Photo runtime
@@ -215,13 +216,14 @@ read-only and never retries. The batch TSV lists completed items. A run director
 is never reused, and batch restoration processes each source into its own item
 directory so filenames cannot collide. Human quality acceptance remains separate.
 
-`opl-package.json` declares the standard read-only `old-photo.review`
-contribution and `app-contribution-adapter.json` binds it to the same owner
+`opl-package.json` (`opl.package.v2`) declares the standard read-only
+`old-photo.review` view (`ui.declarative.views`) and `provides.contribution_handler`
+binds it directly to `agent_old_photo/app_contribution.py` for owner
 readback. Pass `result_path` relative to the registered profile workspace,
 optionally with `expected_revision`. The view offers exact original and stage
 references to the host's existing media viewer; it does not claim an inline
 image-comparison editor. Missing or changed files are marked in the readback.
-The adapter requires `OPL_PROFILE_WORKSPACE` and resolves both result and artifact
+The handler requires `OPL_PROFILE_WORKSPACE` and resolves both result and artifact
 paths within it. It uses only Python's standard library, so review does not load
 model dependencies. Model execution still uses the normal setup described above.
 
